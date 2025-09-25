@@ -64,11 +64,22 @@ export const BASE_URL = "https://mcp-router.net/";
 // export const BASE_URL = 'http://localhost:3001/';
 export const API_BASE_URL = `${BASE_URL}api`;
 
-// Configure auto update
-updateElectronApp({
-  notifyUser: false,
-  updateInterval: "1 hour",
-});
+// Configure auto update (guarded to avoid crash on unsigned macOS builds)
+try {
+  const enableAutoUpdate =
+    isProduction() &&
+    app.isPackaged &&
+    (process.platform !== "darwin" || process.env.ENABLE_AUTO_UPDATE === "true");
+
+  if (enableAutoUpdate) {
+    updateElectronApp({
+      notifyUser: false,
+      updateInterval: "1 hour",
+    });
+  }
+} catch (err) {
+  console.warn("Auto update initialization skipped:", err);
+}
 
 // Declare global variables defined by Electron Forge
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string | undefined;

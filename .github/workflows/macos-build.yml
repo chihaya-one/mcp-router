@@ -1,0 +1,76 @@
+name: macOS Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64, x64]
+    env:
+      ELECTRON_ENV: production
+      # Set target architecture for native modules rebuild and packaging
+      npm_config_target_arch: ${{ matrix.arch }}
+      npm_config_arch: ${{ matrix.arch }}
+      npm_config_target_platform: darwin
+      # Only notarize when secrets are set; otherwise Forge will skip via our config
+      PUBLIC_IDENTIFIER: ${{ secrets.MACOS_SIGN_IDENTITY }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Rebuild native modules for target architecture
+        working-directory: apps/electron
+        run: |
+          echo "Rebuilding native modules for arch=${{ matrix.arch }}"
+          pnpm rebuild:${{ matrix.arch }}
+
+      - name: Build internal packages
+        run: |
+          pnpm --filter @mcp_router/shared build
+          pnpm --filter @mcp_router/remote-api-types build
+
+      - name: Make Electron app (matrix arch)
+        working-directory: apps/electron
+        run: |
+          echo "Building for arch=${{ matrix.arch }}"
+          if [ "${{ matrix.arch }}" = "universal" ]; then
+            pnpm make
+          else
+            pnpm make:${{ matrix.arch }}
+          fi
+
+      - name: Upload artifacts (DMG/ZIP)
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-router-macos-${{ matrix.arch }}
+          path: |
+            apps/electron/out/make/**
+          if-no-files-found: warn
