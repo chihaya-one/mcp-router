@@ -17,6 +17,7 @@ import {
   isDevelopment,
   isProduction,
 } from "@/main/utils/environment";
+import { getSettingsService } from "@/main/modules/settings/settings.service";
 
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -61,15 +62,16 @@ let isQuitting = false;
 let trayUpdateTimer: NodeJS.Timeout | null = null;
 
 export const BASE_URL = "https://mcp-router.net/";
-// export const BASE_URL = 'http://localhost:3001/';
 export const API_BASE_URL = `${BASE_URL}api`;
 
 // Configure auto update (guarded to avoid crash on unsigned macOS builds)
 try {
+  const settingsService = getSettingsService();
+  const settings = settingsService.getSettings();
+  const autoUpdateEnabled = settings.autoUpdateEnabled ?? true;
+
   const enableAutoUpdate =
-    isProduction() &&
-    app.isPackaged &&
-    (process.platform !== "darwin" || process.env.ENABLE_AUTO_UPDATE === "true");
+    isProduction() && app.isPackaged && autoUpdateEnabled;
 
   if (enableAutoUpdate) {
     updateElectronApp({
